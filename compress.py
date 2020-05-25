@@ -1,5 +1,3 @@
-import numpy
-
 import numpy as np
 
 arr = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
@@ -26,11 +24,12 @@ arr = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
 
 debug_print = False
 
-def compress(in_name, out_name):
+def convert_file(in_name, out_name):
     dist = [0] * 257
 
     i = 7
     remainder = 0
+    moved_bytes = []
     with open(in_name, "rb") as f, open(out_name, "wb") as out_file:
         byte = f.read(1)
 
@@ -50,8 +49,8 @@ def compress(in_name, out_name):
             if i == 0:
                 i = 7
                 if debug_print: print('remainder', remainder, " ----- ", remainder.to_bytes(1, 'big'), ord(remainder.to_bytes(1, 'big')))
-
-                out_file.write(remainder.to_bytes(1, 'big'))
+                moved_bytes.append(remainder.to_bytes(1, 'big'))
+                #out_file.write(remainder.to_bytes(1, 'big'))
                 remainder = 0
                 #d -= 1
             #if d == 0:
@@ -59,11 +58,112 @@ def compress(in_name, out_name):
 
             byte = f.read(1)
 
+        # Write the remainder bytes at the end of the file
+        for b in moved_bytes:
+            out_file.write(b)
+
         if i > 0:
             if debug_print: print("Ended Early!", 'remainder', remainder, " ----- ", remainder.to_bytes(1, 'big'), ord(remainder.to_bytes(1, 'big')))
             out_file.write(remainder.to_bytes(1, 'big'))
 
     print(dist)
+
+
+
+def compress(in_name, out_name):
+    counter = 1 # Set to 1 because this means that 2 bytes have been found that match
+    compressions = 0
+    bytes_compressed = 0
+    with open(in_name, "rb") as f, open(out_name, "wb") as out_file:
+        compare_byte = f.read(1)
+        byte = f.read(1)
+        while byte:
+            if compare_byte == byte:
+                counter += 1
+            else:
+                # If we no longer find a byte that matches, and the counter is at 2 more
+                # Store the number of bytes we can compress, and how many times total we compressed
+                if counter > 1:
+                    compressions += 1
+                    bytes_compressed += counter
+                    a = 255
+                    out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit
+                    out_file.write(compare_byte)
+                else:
+                    # The bytes did not match, and we did not have at least "2" matching bytes
+                    # So, write the byte, and move on
+                    out_file.write(compare_byte)
+
+                counter = 1
+
+            compare_byte = byte
+            byte = f.read(1)
+
+
+
+    print("compressions", compressions)
+    print("bytes_compressed", bytes_compressed)
+
+
+def compress_pattern(in_name, out_name, items=2):
+    counter = 1
+    compressions = 0
+    bytes_compressed = 0
+    pattern = []  # 2 part pattern
+    working_bytes = []
+    #items = 2
+    with open(in_name, "rb") as f, open(out_name, "wb") as out_file:
+        for i in range(0, items):
+            working_bytes.append(f.read(1))
+
+        pattern = working_bytes.copy()
+        #for b in working_bytes:
+        #    pattern.append(b)
+
+        counter = 0 # for pattern
+        file_empty = False
+        while not file_empty:
+            if working_bytes == pattern:
+                counter += 1
+            else:
+                # If we no longer find a byte that matches, and the counter is at 2 more
+                # Store the number of bytes we can compress, and how many times total we compressed
+                if counter > 1:
+                    compressions += 1
+                    bytes_compressed += counter
+                    a = 255
+                    out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit
+                    #out_file.write(compare_byte)
+
+                    # Testing 2 byte pattern
+                    for b in pattern:
+                        out_file.write(b)
+
+                else:
+                    # The bytes did not match, and we did not have at least "2" matching bytes
+                    # So, write the byte, and move on
+                    #out_file.write(compare_byte)
+                    for b in pattern:
+                        out_file.write(b)
+
+                counter = 1
+
+            # Only 2 a max 2 pattern
+            pattern = working_bytes.copy()
+
+            working_bytes = []
+            for i in range(0, items):
+                byte = f.read(1)
+                if not byte:
+                    file_empty = True
+                    break
+                working_bytes.append(byte)
+
+
+
+    print("compressions", compressions)
+    print("bytes_compressed", bytes_compressed)
+
 
 
 def decompress(in_name, out_name):
@@ -138,5 +238,7 @@ def decompress(in_name, out_name):
 #compress('file1.exe', 'outfile1.exe')
 #decompress('outfile1.exe', 'revert1.exe')
 
-compress('file.exe', 'outfile.exe')
-decompress('outfile.exe', 'revert.exe')
+# convert_file('file.exe', 'outfile.exe')
+compress('outfile.exe', 'compress.exe')
+compress_pattern('compress.exe', 'compress_pattern2.exe', 2)
+#decompress('outfile.exe', 'revert.exe')
