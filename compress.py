@@ -122,45 +122,69 @@ def compress_pattern(in_name, out_name, items=2):
         while not file_empty:
             if working_bytes == pattern:
                 counter += 1
+                # Update the pattern to the current working_bytes
+                # pattern = working_bytes.copy() # they are the same, we don't need to do this
+
+                working_bytes = []
+                for i in range(0, items):
+                    byte = f.read(1)
+                    if not byte:
+                        file_empty = True
+                        break
+                    working_bytes.append(byte)
             else:
                 # If we no longer find a byte that matches, and the counter is at 2 more
                 # Store the number of bytes we can compress, and how many times total we compressed
                 if counter > 1:
                     compressions += 1
-                    bytes_compressed += (counter * items)
+                    bytes_compressed += (counter * items) - 1
                     a = 255
-                    out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit
+                    out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit information
 
                     # Testing 2 byte pattern
                     for b in pattern:
                         out_file.write(b)
 
-                    print(pattern)
+                    #print(pattern)
+                    # Reset pattern to new pattern found in working_bytes
+                    # Load new N bytes from file to compare against
+                    pattern = working_bytes.copy()
+                    working_bytes = []
+                    for i in range(0, items):
+                        byte = f.read(1)
+                        if not byte:
+                            file_empty = True
+                            break
+                        working_bytes.append(byte)
 
                 else:
                     # The bytes did not match, and we did not have at least "2" matching bytes
                     # So, write the byte, and move on
                     #out_file.write(compare_byte)
-                    for b in pattern:
-                        out_file.write(b)
+                    #for b in pattern:
+                    #    out_file.write(b)
+
+                    # if the 15 bytes pattern doesn't match the next 15 bytes
+                    # Write the first byte from the pattern via pop(0)
+                    b = pattern.pop(0)
+                    out_file.write(b)
+
+                    # Shift the first byte from the working_bytes to the end of pattern with append
+                    b = working_bytes.pop(0)
+                    pattern.append(b)
+
+                    # Read a new byte and append it to the end of working_bytes
+                    byte = f.read(1)
+                    if not byte:
+                        file_empty = True
+                    working_bytes.append(byte)
 
                 counter = 1
-
-            # Only 2 a max 2 pattern
-            pattern = working_bytes.copy()
-
-            working_bytes = []
-            for i in range(0, items):
-                byte = f.read(1)
-                if not byte:
-                    file_empty = True
-                    break
-                working_bytes.append(byte)
 
 
         if counter > 1:
             compressions += 1
-            bytes_compressed += counter
+            bytes_compressed += (counter * items) - 1
             a = 255
             out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit
             # out_file.write(compare_byte)
@@ -258,8 +282,8 @@ def decompress(in_name, out_name):
 #decompress('outfile1.exe', 'revert1.exe')
 
 #convert_file('file1.exe', 'outfile1.exe')
-filename = 'file'
-fileext = '.exe'
+filename = 'speech' # file
+fileext = '.txt' # .exe
 convert_file(filename + fileext, 'working/' + filename + '0' + fileext)
 compress('working/' + filename + '0' + fileext, 'working/' + filename + '16' + fileext)
 
