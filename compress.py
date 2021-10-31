@@ -106,8 +106,8 @@ def compress(in_name, out_name):
 
 
 def compress_pattern(in_name, out_name, items=2):
-    print("Attempting compression with pattern of " + str(items) + " items")
-    print(in_name, out_name)
+    #print("Attempting compression with pattern of " + str(items) + " items")
+    #print(in_name, out_name)
     compressions = 0
     bytes_compressed = 0
     working_bytes = []
@@ -204,9 +204,142 @@ def compress_pattern(in_name, out_name, items=2):
         for b in working_bytes:
             out_file.write(b)
 
-    print("compressions", compressions)
-    print("bytes_compressed", bytes_compressed)
+    if compressions > 0:
+        print("Attempting compression with pattern of " + str(items) + " items")
+        print(in_name, out_name)
 
+        print("compressions", compressions)
+        print("bytes_compressed", bytes_compressed)
+
+
+# Skip over N bytes to look for the next matching pattern
+def skip_compress(in_name, out_name, items, skip_bytes):
+    compressions = 0
+    bytes_compressed = 0
+    working_bytes = []
+    skip_buffer = []  # Place to store extra bytes to "skip" ahead"
+    with open(in_name, "rb") as f, open(out_name, "wb") as out_file:
+        for i in range(0, items):
+            working_bytes.append(f.read(1))
+
+        pattern = working_bytes.copy()
+
+        counter = 0 # for pattern
+        file_empty = False
+        while not file_empty:
+            if working_bytes == pattern:
+                counter += 1
+                # Update the pattern to the current working_bytes
+                # pattern = working_bytes.copy() # they are the same, we don't need to do this
+
+                # Read in the next N bytes to skip over and store in the skip buffer
+                for s in range(0, skip_bytes):
+                    skip_buffer.append(f.read(1))
+
+                working_bytes = []
+                for i in range(0, items):
+                    byte = f.read(1)
+                    if not byte:
+                        file_empty = True
+                        break
+                    working_bytes.append(byte)
+
+            else:
+                # If we no longer find a byte that matches, and the counter is at 2 more
+                # Store the number of bytes we can compress, and how many times total we compressed
+                if counter > 1:
+                    compressions += 1
+                    bytes_compressed += (counter * items) - 1
+                    a = 255
+                    out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit information
+
+                    # Write pattern that will be interleaved into the skip_buffer that is written afterwards
+                    for b in pattern:
+                        out_file.write(b)
+
+                    # Write out all the bytes we've been compiling from the skip buffer
+                    # Minus the last "N" where n is the number of skip bytes
+                    # Leaving skip_buffer at skip_bytes items
+                    for i in range(0, len(skip_buffer) - skip_bytes):
+                        b = skip_buffer.pop(0)
+                        out_file.write(b)
+
+                    # Reset pattern to new pattern found in working_bytes
+                    # Load new N bytes from file to compare against
+                    # Minus the number of bytes in the skip_buffer
+                    pattern = skip_buffer.copy()
+                    for i in range(0, len(working_bytes) - skip_bytes):
+                        pattern.append(working_bytes.pop(0))
+
+                    # Read in skip bytes (Pattern - Skip - Working)
+                    # working_bytes should now contain only "skip_bytes" amount of bytes
+                    # This becomes the new skip_buffer
+                    skip_buffer = working_bytes.copy()
+
+                    # Load the next N bytes to check of a pattern after skip_buffer
+                    working_bytes = []
+                    for i in range(0, items):
+                        byte = f.read(1)
+                        if not byte:
+                            file_empty = True
+                            break
+                        working_bytes.append(byte)
+
+
+
+                else:
+                    # The bytes did not match, and we did not have at least "2" matching bytes
+                    # So, write the byte, and move on
+                    #out_file.write(compare_byte)
+                    #for b in pattern:
+                    #    out_file.write(b)
+
+                    # if the 15 bytes pattern doesn't match the next 15 bytes
+                    # Write the first byte from the pattern via pop(0)
+                    b = pattern.pop(0)
+                    out_file.write(b)
+
+                    # Shift the first byte from the skip_buffer to the end of the pattern with append
+                    b = skip_buffer.pop(0)
+                    pattern.append(b)
+
+                    # Shift the first byte from the working_bytes to the end of skip_buffer with append
+                    b = working_bytes.pop(0)
+                    skip_buffer.append(b)
+
+                    # Read a new byte and append it to the end of working_bytes
+                    byte = f.read(1)
+                    if not byte:
+                        file_empty = True
+                    working_bytes.append(byte)
+
+                counter = 1
+
+
+        if counter > 1:
+            compressions += 1
+            bytes_compressed += (counter * items) - 1
+            a = 255
+            out_file.write(a.to_bytes(1, 'big'))  # TODO: this would be the compression_bit
+            # out_file.write(compare_byte)
+
+        for b in pattern:
+            out_file.write(b)
+
+        # need to write any remaining bytes in skip
+        for b in skip_buffer:
+            out_file.write(b)
+
+        # need to write any remaining bytes captured
+        for b in working_bytes:
+            out_file.write(b)
+
+    if compressions > 0:
+        print("Compression by skipping " + str(skip_bytes) + " bytes with " + str(items) + " items")
+        print(in_name, out_name)
+
+        print("compressions", compressions)
+        print("bytes_compressed", bytes_compressed)
 
 
 def decompress(in_name, out_name):
@@ -282,12 +415,20 @@ def decompress(in_name, out_name):
 #decompress('outfile1.exe', 'revert1.exe')
 
 #convert_file('file1.exe', 'outfile1.exe')
-filename = 'speech' # file
-fileext = '.txt' # .exe
+filename = 'img_256' # file
+fileext = '.bmp' # .exe
 convert_file(filename + fileext, 'working/' + filename + '0' + fileext)
 compress('working/' + filename + '0' + fileext, 'working/' + filename + '16' + fileext)
 
+previous_file = 'working/' + filename + '16' + fileext
 for i in range(15, 1, -1):
-    compress_pattern('working/' + filename + str(i+1) + fileext, 'working/' + filename + str(i) + fileext, i)
+    compress_pattern(previous_file, 'working/' + filename + str(i) + fileext, i)
+    previous_file = 'working/' + filename + str(i) + fileext
+
+previous_file = 'working/' + filename + '2' + fileext
+for i in range(15, 1, -1):
+    for j in range(1, 10):
+        skip_compress(previous_file, 'working/' + filename + str(i) + "_" + str(j) + fileext, i, j)
+        previous_file = 'working/' + filename + str(i) + "_" + str(j) + fileext
 
 #decompress('outfile.exe', 'revert.exe')

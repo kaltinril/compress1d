@@ -78,3 +78,4 @@ Imagine you have 16 characters `AAAAAAAAAAAAAAAA` this would end up needing to b
 
 To resolve this, the 7-bit bytes could be instead put at the end of the file as a seperate chunk, still compressible, but just not interweaved into the existing possible compressble bytes.
 
+N
